@@ -25,7 +25,7 @@ func AgentLoop() {
 	}
 
 	for {
-		fmt.Print("> ")
+		fmt.Print("=> ")
 		userPrompt := strings.TrimSpace(utils.ReadUserPrompt())
 		if userPrompt == "/exit" {
 			break

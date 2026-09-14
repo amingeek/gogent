@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+
 	"gogent/config"
 	"gogent/models"
 	"gogent/plugins"
-	"io"
-	"net/http"
+	"gogent/utils"
 )
 
 const MaxToolIterations = 10
@@ -34,9 +36,11 @@ func CallAI(prompt string) string {
 		})
 	}
 
+	utils.Infof("AI: sending prompt (%d tools advertised)", len(apiTools))
+
 	for iteration := 0; iteration < MaxToolIterations; iteration++ {
 		reqBody := models.ChatRequest{
-			Model:    "aion-labs/aion-2.0",
+			Model:    "Qwen/Qwen2.5-Coder-7B-Instruct",
 			Messages: messages,
 			Tools:    apiTools,
 		}
@@ -69,12 +73,12 @@ func CallAI(prompt string) string {
 		}
 
 		if resp.StatusCode != http.StatusOK {
+			utils.Errorf("AI returned HTTP %s", resp.Status)
 			return fmt.Sprintf("Error: status %s\nMessage: %s", resp.Status, string(body))
 		}
 
 		var chatResp models.ChatResponse
-		err = json.Unmarshal(body, &chatResp)
-		if err != nil {
+		if err := json.Unmarshal(body, &chatResp); err != nil {
 			return fmt.Sprintf("Error parsing JSON: %v", err)
 		}
 
@@ -85,17 +89,33 @@ func CallAI(prompt string) string {
 		assistantMsg := chatResp.Choices[0].Message
 		messages = append(messages, assistantMsg)
 
-		if len(assistantMsg.ToolCalls) == 0 {
-			return assistantMsg.Content
+		// 1) Native OpenAI-style tool_calls
+		toolCalls := assistantMsg.ToolCalls
+
+		// 2) Fallback: model wrote the call as a <functions> block in text
+		if len(toolCalls) == 0 {
+			toolCalls = ParseFunctionCalls(assistantMsg.Content)
+			if len(toolCalls) > 0 {
+				utils.Infof("AI: found %d function call(s) in response text", len(toolCalls))
+			}
 		}
 
-		for _, toolCall := range assistantMsg.ToolCalls {
+		if len(toolCalls) == 0 {
+			return CleanToolContent(assistantMsg.Content)
+		}
+
+		for _, toolCall := range toolCalls {
 			toolName := toolCall.Function.Name
 			toolArgsJSON := toolCall.Function.Arguments
+
+			utils.Infof("tool %s: args=%s", toolName, toolArgsJSON)
 
 			result, err := registry.ExecuteTool(toolName, toolArgsJSON)
 			if err != nil {
 				result = fmt.Sprintf("Error executing tool %s: %v", toolName, err)
+				utils.Errorf("tool %s failed: %v", toolName, err)
+			} else {
+				utils.Infof("tool %s: result=%.200s", toolName, result)
 			}
 
 			toolMsg := models.Message{

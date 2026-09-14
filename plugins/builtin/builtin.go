@@ -185,7 +185,9 @@ func (p *BuiltinPlugin) GetTools() []plugins.Tool {
 }
 
 func init() {
-	plugins.RegisterPlugin(NewBuiltinPlugin())
+	if err := plugins.RegisterPlugin(NewBuiltinPlugin()); err != nil {
+		fmt.Println("ERROR: failed to register builtin plugin:", err)
+	}
 }
 
 var _ plugins.Plugin = (*BuiltinPlugin)(nil)

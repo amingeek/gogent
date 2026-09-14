@@ -16,9 +16,11 @@ func NewReadPlugin() *ReadPlugin {
 	return &ReadPlugin{}
 }
 
-func (p *ReadPlugin) Name() string        { return "read" }
-func (p *ReadPlugin) Version() string     { return "1.0.0" }
-func (p *ReadPlugin) Description() string { return "Advanced file reading plugin with support for line ranges, multiple files, and search" }
+func (p *ReadPlugin) Name() string    { return "read" }
+func (p *ReadPlugin) Version() string { return "1.0.0" }
+func (p *ReadPlugin) Description() string {
+	return "Advanced file reading plugin with support for line ranges, multiple files, and search"
+}
 
 func (p *ReadPlugin) Initialize(config map[string]interface{}) error {
 	p.config = config
@@ -253,7 +255,10 @@ func (t *SearchFileTool) Execute(args map[string]interface{}) (string, error) {
 }
 
 func init() {
-	plugins.RegisterPlugin(NewReadPlugin())
+	err := plugins.RegisterPlugin(NewReadPlugin())
+	if err != nil {
+		fmt.Println("ERROR: failed to register read plugin:", err)
+	}
 }
 
 var _ plugins.Plugin = (*ReadPlugin)(nil)
